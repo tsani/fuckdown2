@@ -32,7 +32,7 @@ instance Functor f => Monad (Free f) where
     -- k :: Free f a -> (a -> Free f b) -> Free f b
     (Pure x) >>= k = k x
     (Free f) >>= k = Free (fmap (>>= k) f)
---
+
 -- | Promotes a functor into its associated free monad.
 liftF :: Functor f => f r -> Free f r
 liftF f = Free (fmap Pure f)

@@ -7,6 +7,7 @@ import DSL
 import Free
 import Fuckdown
 import Interpreter
+import Pretty
 import Subtype
 
 import Control.Monad.State
@@ -21,4 +22,6 @@ example = do
         output
         right
 
-main = runStateT (runInterpreter (exec example)) initialState
+main = do
+    putStrLn (pretty_ example)
+    runStateT (runInterpreter (exec example)) initialState

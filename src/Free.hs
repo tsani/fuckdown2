@@ -27,9 +27,6 @@ instance Functor f => Applicative (Free f) where
 
 instance Functor f => Monad (Free f) where
     return = Pure
-
-    -- m :: Free f a
-    -- k :: Free f a -> (a -> Free f b) -> Free f b
     (Pure x) >>= k = k x
     (Free f) >>= k = Free (fmap (>>= k) f)
 

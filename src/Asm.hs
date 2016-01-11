@@ -11,11 +11,11 @@ import Free
 type Immediate = Int64
 type Address = Word64
 
-data Val
+data Val addr
     = I Immediate
     | R Register
     | RR Register
-    | A Address
+    | A addr
     deriving (Eq, Show)
 
 data Register
@@ -29,26 +29,31 @@ data Register
     | Rsp
     deriving (Eq, Show)
 
-data Asm f
+-- | High-level assembly code instructions, without concern for addressing
+-- modes or other details.
+--
+-- The address type is left as a parameter to allow for to use whatever address
+-- representation might be most useful to them.
+data Asm addr f
     = Ret f
-    | Mov Val Val f
-    | Add Val Val f
-    | Sub Val Val f
-    | Mul Val f
-    | IMul Val f
-    | Xor Val Val f
-    | Inc Val f
-    | Dec Val f
-    | Push Val f
-    | Pop Val f
-    | Jmp Val f
-    | Loop Val f
+    | Mov (Val addr) (Val addr) f
+    | Add (Val addr) (Val addr) f
+    | Sub (Val addr) (Val addr) f
+    | Mul (Val addr) f
+    | IMul (Val addr) f
+    | Xor (Val addr) (Val addr) f
+    | Inc (Val addr) f
+    | Dec (Val addr) f
+    | Push (Val addr) f
+    | Pop (Val addr) f
+    | Jmp (Val addr) f
+    | Loop (Val addr) f
     | Nop f
     | Syscall f
-    | Label (Address -> f)
+    | Label (addr -> f)
     deriving (Functor)
 
-type AsmF = Free Asm
+type AsmF addr = Free (Asm addr)
 
 -- Shorthands for Free-wrapped assembly commands.
 
@@ -71,39 +76,54 @@ label = liftF . Label $ id
 
 -- Shorthands for registers
 
-rax :: Val
+rax :: Val addr
 rax = R Rax
 
-rbx :: Val
+rbx :: Val addr
 rbx = R Rbx
 
-rcx :: Val
+rcx :: Val addr
 rcx = R Rcx
 
-rdx :: Val
+rdx :: Val addr
 rdx = R Rdx
 
-rbp :: Val
+rbp :: Val addr
 rbp = R Rbp
 
-rsi :: Val
+rsi :: Val addr
 rsi = R Rsi
 
-rdi :: Val
+rdi :: Val addr
 rdi = R Rdi
 
-rsp :: Val
+rsp :: Val addr
 rsp = R Rsp
 
 -- Shorthands for indirect register addressing
 
+irax :: Val addr
 irax = RR Rax
+
+irbx :: Val addr
 irbx = RR Rbx
+
+ircx :: Val addr
 ircx = RR Rcx
+
+irdx :: Val addr
 irdx = RR Rdx
+
+irbp :: Val addr
 irbp = RR Rbp
+
+irsp :: Val addr
 irsp = RR Rsp
+
+irsi :: Val addr
 irsi = RR Rsi
+
+irdi :: Val addr
 irdi = RR Rdi
 
 -- | Gets the index of a register.

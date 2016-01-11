@@ -42,3 +42,6 @@ foldF extract (Free f) = extract (fmap (foldF extract) f)
 foldFM :: (Monad m, Functor f) => (f (m r) -> m r) -> Free f r -> m r
 foldFM _       (Pure x) = return x
 foldFM extract (Free f) = extract (fmap (foldFM extract) f)
+
+($>) :: Functor f => f a -> b -> f b
+f $> x = fmap (const x) f

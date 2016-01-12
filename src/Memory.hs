@@ -4,6 +4,7 @@
 module Memory where
 
 import Foreign
+import Foreign.C
 import qualified Data.ByteString as BS
 import Data.ByteString.Unsafe ( unsafeUseAsCString )
 import Data.Word
@@ -18,9 +19,11 @@ foreign import ccall unsafe "sys/mman.h munmap"
     c_munmap :: Ptr a -> Int -> IO Int
 
 mmapAnonymousSize :: Int -> Maybe [Protection] -> IO (Ptr a)
-mmapAnonymousSize sz (storeProtection -> prot)
-    = c_mmap nullPtr sz prot flagMapAnonymous (-1) 0 where
-        flagMapAnonymous = 0x20
+mmapAnonymousSize sz (storeProtection -> prot) = do
+    let flagMapAnonymous = 0x20
+        flagMapPrivate = 0x02
+    throwErrnoIf ((== (-1)) . ptrToIntPtr) "mmapAnonymous" $ do
+        c_mmap nullPtr sz prot (flagMapAnonymous .|. flagMapPrivate) (-1) 0
 
 -- | Unsafely extracts the byte pointer of a ByteString, makes its memory
 -- region executable, and synthesizes an IO action representing running the

@@ -14,7 +14,7 @@ type Address = Word64
 data Val addr
     = I Immediate
     | R Register
-    | RR Register
+    | IR Register
     | A addr
     deriving (Eq, Show)
 
@@ -103,31 +103,31 @@ rsp = R Rsp
 -- Shorthands for indirect register addressing
 
 irax :: Val addr
-irax = RR Rax
+irax = IR Rax
 
 irbx :: Val addr
-irbx = RR Rbx
+irbx = IR Rbx
 
 ircx :: Val addr
-ircx = RR Rcx
+ircx = IR Rcx
 
 irdx :: Val addr
-irdx = RR Rdx
+irdx = IR Rdx
 
 irbp :: Val addr
-irbp = RR Rbp
+irbp = IR Rbp
 
 irsp :: Val addr
-irsp = RR Rsp
+irsp = IR Rsp
 
 irsi :: Val addr
-irsi = RR Rsi
+irsi = IR Rsi
 
 irdi :: Val addr
-irdi = RR Rdi
+irdi = IR Rdi
 
 -- | Gets the index of a register.
-index :: Register -> Int
+index :: Num a => Register -> a
 index r = case r of
     Rax -> 0
     Rcx -> 1
@@ -137,3 +137,14 @@ index r = case r of
     Rbp -> 5
     Rsi -> 6
     Rdi -> 7
+
+-- | Wraps assembly code with the function intro and outro logic to deal with
+-- stack frames.
+asmFunction :: AsmF addr () -> AsmF addr ()
+asmFunction body = do
+    push rbp
+    mov rbp rsp
+    body
+    mov rsp rbp
+    pop rbp
+    ret

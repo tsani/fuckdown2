@@ -57,7 +57,7 @@ val (R r) = case r of
     Rsi -> "rsi"
     Rdi -> "rdi"
     Rsp -> "rsp"
-val (RR r) = "[" <> val (R r) <> "]"
+val (IR r) = "[" <> val (R r) <> "]"
 val (A b) = b
 
 line m t = (<>) <$> pure t <*> m

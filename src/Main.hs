@@ -11,12 +11,19 @@ import DSL
 import Free
 import Fuckdown
 import qualified Interpreter as I
+import Memory
 import qualified Pretty as PF
 import qualified PrettyAsm as PA
 import Subtype
 
 import Control.Monad.State
-import qualified Data.Text.Lazy.IO as T
+import qualified Data.ByteString.Lazy as BS
+import Data.ByteString.Unsafe ( unsafeUseAsCString )
+import qualified Data.Text.Lazy.Builder as TextB
+import Data.Text.Lazy.Builder.Int ( hexadecimal )
+import qualified Data.Text.Lazy.IO as TextIO
+import Foreign
+import System.Exit ( exitFailure )
 
 exec :: Free FuckDSL r -> I.Interpreter r
 exec = foldFM I.interpret
@@ -29,7 +36,24 @@ example = do
         right
 
 main = do
-    putStrLn (PF.pretty_ example)
-    runStateT (I.runInterpreter (exec example)) I.initialState
-    let asm = compileFuck example
-    T.putStr (PA.pretty asm)
+    -- putStrLn (PF.pretty_ example)
+    -- runStateT (I.runInterpreter (exec example)) I.initialState
+    let asm = asmFunction $ do
+            mov rcx rdi
+            compileFuck example
+    TextIO.putStr (PA.pretty asm)
+    code <- case assemble asm of
+        Left e -> do
+            putStr "Assembler error: "
+            case e of
+                InvalidOpcode -> putStrLn "invalid opcode"
+                UnsupportedOpcode asm -> do
+                    putStrLn "unsupported opcode"
+            exitFailure
+        Right bs -> do
+            putStrLn "Generated code: "
+            putStr (show (BS.unpack bs))
+            return bs
+    f <- byteStringFunction (BS.toStrict code)
+    () <- allocaBytes 4096 f
+    putStr "Done."

@@ -81,17 +81,6 @@ instance Compile (AsmF addr) Fuck.Input where
 instance Compile (AsmF addr) FuckDSL where
     compileArg (FuckDSL f) = compileArg f
 
--- | Wraps assembly code with the function intro and outro logic to deal with
--- stack frames.
-asmFunction :: AsmF addr () -> AsmF addr ()
-asmFunction body = do
-    push rbp
-    mov rbp rsp
-    body
-    mov rsp rbp
-    pop rbp
-    ret
-
 -- | Raw compilation from brainfuck to assembly.
 compileFuck :: Free FuckDSL () -> AsmF addr ()
 compileFuck = foldFM compileArg

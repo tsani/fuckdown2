@@ -14,7 +14,7 @@ import qualified Data.Text.Lazy as T
 import Data.Text.Lazy.Builder
 import Data.Text.Lazy.Builder.Int
 
-type AsmPretty = Asm Builder
+type AsmPretty = Asm Builder Builder
 type AsmPrettyF = Free AsmPretty
 
 data PrettyAsmState
@@ -53,7 +53,7 @@ nextLabel = do
     return ("l" <> decimal i)
 
 -- | Represent a value as text.
-val :: Val Builder -> Builder
+val :: Val Builder Builder -> Builder
 val (I i) = hexadecimal i
 val (R r) = case r of
     Rax -> "rax"
@@ -66,6 +66,7 @@ val (R r) = case r of
     Rsp -> "rsp"
 val (IR r) = "[" <> val (R r) <> "]"
 val (A b) = b
+val (L l) = l
 
 line :: (Applicative f, Monoid b, IsString b) => f b -> b -> f b
 line m t = prepend m (t <> "\n")
@@ -77,27 +78,29 @@ prepend m t = (<>) <$> pure t <*> m
 prettyArg :: AsmPretty (PrettyAsm Builder) -> PrettyAsm Builder
 prettyArg a = case a of
     Ret m -> line m $ "ret"
-    Mov v1 v2 m -> line m $ "mov "  <> val v1 <> ", " <> val v2
-    Add v1 v2 m -> line m $ "add "  <> val v1 <> ", " <> val v2
-    Sub v1 v2 m -> line m $ "sub "  <> val v1 <> ", " <> val v2
-    Mul v1 m    -> line m $ "mul "  <> val v1
-    IMul v1 m   -> line m $ "imul " <> val v1
-    Xor v1 v2 m -> line m $ "xor "  <> val v1 <> ", " <> val v2
-    Inc v1 m    -> line m $ "inc "  <> val v1
-    Dec v1 m    -> line m $ "dec "  <> val v1
-    Push v1 m   -> line m $ "push " <> val v1
-    Pop v1 m    -> line m $ "pop "  <> val v1
-    Jmp v1 m    -> line m $ "jmp "  <> val v1
-    Loop v1 m   -> line m $ "loop " <> val v1
-    Int v1 m    -> line m $ "inc "  <> val v1
-    Cmp v1 v2 m -> line m $ "cmp "  <> val v1 <> ", " <> val v2
-    Je v1 m     -> line m $ "je "   <> val v1
-    Jne v1 m    -> line m $ "jne "  <> val v1
-    Nop m       -> line m $ "nop"
-    Syscall m   -> line m $ "syscall"
-    Label k -> do
+    Mov v1 v2 m  -> line m $ "mov "  <> val v1 <> ", " <> val v2
+    Add v1 v2 m  -> line m $ "add "  <> val v1 <> ", " <> val v2
+    Sub v1 v2 m  -> line m $ "sub "  <> val v1 <> ", " <> val v2
+    Mul v1 m     -> line m $ "mul "  <> val v1
+    IMul v1 m    -> line m $ "imul " <> val v1
+    Xor v1 v2 m  -> line m $ "xor "  <> val v1 <> ", " <> val v2
+    Inc v1 m     -> line m $ "inc "  <> val v1
+    Dec v1 m     -> line m $ "dec "  <> val v1
+    Push v1 m    -> line m $ "push " <> val v1
+    Pop v1 m     -> line m $ "pop "  <> val v1
+    Jmp v1 m     -> line m $ "jmp "  <> val v1
+    Loop v1 m    -> line m $ "loop " <> val v1
+    Int v1 m     -> line m $ "inc "  <> val v1
+    Cmp v1 v2 m  -> line m $ "cmp "  <> val v1 <> ", " <> val v2
+    Je v1 m      -> line m $ "je "   <> val v1
+    Jne v1 m     -> line m $ "jne "  <> val v1
+    Nop m        -> line m $ "nop"
+    Syscall m    -> line m $ "syscall"
+    NewLabel k -> do
         l <- (<> ":") <$> nextLabel
-        line (k l) $ l
+        k l
+    SetLabel l m -> line m l
+    Here k -> k "$"
 
 pretty :: AsmPrettyF a -> T.Text
 pretty asm

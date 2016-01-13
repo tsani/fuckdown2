@@ -18,27 +18,27 @@ import qualified Fuckdown as Fuck
 
 -- | An assembly value representing an immediate containing the number of the
 -- /read/ syscall.
-syscallRead :: Val addr
+syscallRead :: Val label addr
 syscallRead = I 0
 
 -- | An assembly value representing an immediate containing the number of the
 -- /write/ syscall.
-syscallWrite :: Val addr
+syscallWrite :: Val label addr
 syscallWrite = I 1
 
 -- | An assembly value representing an immediate containing the file descriptor
 -- number of standard in.
-stdinFd :: Val addr
+stdinFd :: Val label addr
 stdinFd = I 0
 
 -- | An assembly value representing an immediate containing the file descriptor
 -- number of standard out.
-stdoutFd :: Val addr
+stdoutFd :: Val label addr
 stdoutFd = I 1
 
 -- | An assembly value representing an immediate containing the file descriptor
 -- number of standard error.
-stderrFd :: Val addr
+stderrFd :: Val label addr
 stderrFd = I 2
 
 class (Functor f, Monad m) => Compile m f where
@@ -48,38 +48,45 @@ instance (Compile m f, Compile m g) => Compile m (f :+: g) where
     compileArg (InL f) = compileArg f
     compileArg (InR g) = compileArg g
 
-instance Compile (AsmF addr) Fuck.GoLeft where
+instance Compile (AsmF label addr) Fuck.GoLeft where
     compileArg (Fuck.GoLeft m) = do
         dec rax
         m
 
-instance Compile (AsmF addr) Fuck.GoRight where
+instance Compile (AsmF label addr) Fuck.GoRight where
     compileArg (Fuck.GoRight m) = do
         inc rax
         m
 
-instance Compile (AsmF addr) Fuck.Inc where
+instance Compile (AsmF label addr) Fuck.Inc where
     compileArg (Fuck.Inc m) = do
         inc irax
         m
 
-instance Compile (AsmF addr) Fuck.Dec where
+instance Compile (AsmF label addr) Fuck.Dec where
     compileArg (Fuck.Dec m) = do
         dec irax
         m
 
-instance Compile (AsmF addr) f => Compile (AsmF addr) (Fuck.Loop f) where
+instance Compile (AsmF label addr) f => Compile (AsmF label addr) (Fuck.Loop f) where
     compileArg (Fuck.Loop body m) = do
-        int (I 3)
+        done <- newLabel
+
+        -- if the cell is already zero, jump over the loop body
         cmp irax (I 0)
-        -- need to jump over the body of the loop here !
-        l <- label
+        je (L done)
+
+        -- set a label for the loop start
+        inner <- label
         _ <- foldFM compileArg body
         cmp irax (I 0)
-        jne (A l)
+        jne (L inner)
+        -- decrement the cell until we get to zero
+
+        setLabel done
         m
 
-instance Compile (AsmF addr) Fuck.Output where
+instance Compile (AsmF label addr) Fuck.Output where
     compileArg (Fuck.Output m) = do
         push rax
         mov rsi rax -- buffer to write from
@@ -90,7 +97,7 @@ instance Compile (AsmF addr) Fuck.Output where
         pop rax -- restore rax in case the syscall messed with it
         m
 
-instance Compile (AsmF addr) Fuck.Input where
+instance Compile (AsmF label addr) Fuck.Input where
     compileArg (Fuck.Input m) = do
         push rax
         mov rax syscallRead
@@ -101,9 +108,9 @@ instance Compile (AsmF addr) Fuck.Input where
         pop rax
         m
 
-instance Compile (AsmF addr) FuckDSL where
+instance Compile (AsmF label addr) FuckDSL where
     compileArg (FuckDSL f) = compileArg f
 
 -- | Raw compilation from brainfuck to assembly.
-compileFuck :: Free FuckDSL () -> AsmF addr ()
+compileFuck :: Free FuckDSL () -> AsmF label addr ()
 compileFuck = foldFM compileArg

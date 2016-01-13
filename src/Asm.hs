@@ -10,11 +10,12 @@ import Free
 type Immediate = Int64
 type Address = Word64
 
-data Val addr
+data Val label addr
     = I Immediate
     | R Register
     | IR Register
     | A addr
+    | L label
     deriving (Eq, Show)
 
 data Register
@@ -33,149 +34,163 @@ data Register
 --
 -- The address type is left as a parameter to allow for to use whatever address
 -- representation might be most useful to them.
-data Asm addr f
+data Asm label addr f
     = Ret f
-    | Mov (Val addr) (Val addr) f
-    | Add (Val addr) (Val addr) f
-    | Sub (Val addr) (Val addr) f
-    | Mul (Val addr) f
-    | IMul (Val addr) f
-    | Xor (Val addr) (Val addr) f
-    | Inc (Val addr) f
-    | Dec (Val addr) f
-    | Push (Val addr) f
-    | Pop (Val addr) f
-    | Jmp (Val addr) f
-    | Loop (Val addr) f
+    | Mov (Val label addr) (Val label addr) f
+    | Add (Val label addr) (Val label addr) f
+    | Sub (Val label addr) (Val label addr) f
+    | Mul (Val label addr) f
+    | IMul (Val label addr) f
+    | Xor (Val label addr) (Val label addr) f
+    | Inc (Val label addr) f
+    | Dec (Val label addr) f
+    | Push (Val label addr) f
+    | Pop (Val label addr) f
+    | Jmp (Val label addr) f
+    | Loop (Val label addr) f
     | Nop f
     | Syscall f
-    | Label (addr -> f)
-    | Int (Val addr) f
-    | Cmp (Val addr) (Val addr) f
-    | Je (Val addr) f
-    | Jne (Val addr) f
+    | NewLabel (label -> f)
+    | SetLabel label f
+    | Here (addr -> f)
+    | Int (Val label addr) f
+    | Cmp (Val label addr) (Val label addr) f
+    | Je (Val label addr) f
+    | Jne (Val label addr) f
     deriving (Functor)
 
-type AsmF addr = Free (Asm addr)
+type AsmF label addr = Free (Asm label addr)
 
 -- Shorthands for Free-wrapped assembly commands.
 
-ret :: AsmF addr ()
+ret :: AsmF label addr ()
 ret = liftF . Ret $ ()
 
-mov :: Val addr -> Val addr -> AsmF addr ()
+mov :: Val label addr -> Val label addr -> AsmF label addr ()
 mov v1 v2 = liftF . Mov v1 v2 $ ()
 
-add :: Val addr -> Val addr -> AsmF addr ()
+add :: Val label addr -> Val label addr -> AsmF label addr ()
 add v1 v2 = liftF . Add v1 v2 $ ()
 
-sub :: Val addr -> Val addr -> AsmF addr ()
+sub :: Val label addr -> Val label addr -> AsmF label addr ()
 sub v1 v2 = liftF . Sub v1 v2 $ ()
 
-mul :: Val addr -> AsmF addr ()
+mul :: Val label addr -> AsmF label addr ()
 mul v1 = liftF . Mul v1 $ ()
 
-imul :: Val addr -> AsmF addr ()
+imul :: Val label addr -> AsmF label addr ()
 imul v1 = liftF . IMul v1 $ ()
 
-xor :: Val addr -> Val addr -> AsmF addr ()
+xor :: Val label addr -> Val label addr -> AsmF label addr ()
 xor v1 v2 = liftF . Xor v1 v2 $ ()
 
-inc :: Val addr -> AsmF addr ()
+inc :: Val label addr -> AsmF label addr ()
 inc v1 = liftF . Inc v1 $ ()
 
-dec :: Val addr -> AsmF addr ()
+dec :: Val label addr -> AsmF label addr ()
 dec v1 = liftF . Dec v1 $ ()
 
-push :: Val addr -> AsmF addr ()
+push :: Val label addr -> AsmF label addr ()
 push v1 = liftF . Push v1 $ ()
 
-pop :: Val addr -> AsmF addr ()
+pop :: Val label addr -> AsmF label addr ()
 pop v1 = liftF . Pop v1 $ ()
 
-jmp :: Val addr -> AsmF addr ()
+jmp :: Val label addr -> AsmF label addr ()
 jmp v1 = liftF . Jmp v1 $ ()
 
-loop :: Val addr -> AsmF addr ()
+loop :: Val label addr -> AsmF label addr ()
 loop v1 = liftF . Loop v1 $ ()
 
-nop :: AsmF addr ()
+nop :: AsmF label addr ()
 nop = liftF . Nop $ ()
 
-syscall :: AsmF addr ()
+syscall :: AsmF label addr ()
 syscall = liftF . Syscall $ ()
 
-label :: AsmF addr addr
-label = liftF . Label $ id
+newLabel :: AsmF label addr label
+newLabel = liftF . NewLabel $ id
 
-int :: Val addr -> AsmF addr ()
+setLabel :: label -> AsmF label addr ()
+setLabel l = liftF . SetLabel l $ ()
+
+here :: AsmF label addr addr
+here = liftF . Here $ id
+
+label :: AsmF label addr label
+label = do
+    l <- newLabel
+    setLabel l
+    return l
+
+int :: Val label addr -> AsmF label addr ()
 int v1 = liftF . Int v1 $ ()
 
-cmp :: Val addr -> Val addr -> AsmF addr ()
+cmp :: Val label addr -> Val label addr -> AsmF label addr ()
 cmp v1 v2 = liftF . Cmp v1 v2 $ ()
 
-je :: Val addr -> AsmF addr ()
+je :: Val label addr -> AsmF label addr ()
 je v1 = liftF . Je v1 $ ()
 
-jne :: Val addr -> AsmF addr ()
+jne :: Val label addr -> AsmF label addr ()
 jne v1 = liftF . Jne v1 $ ()
 
-jz :: Val addr -> AsmF addr ()
+jz :: Val label addr -> AsmF label addr ()
 jz = je
 
-jnz :: Val addr -> AsmF addr ()
+jnz :: Val label addr -> AsmF label addr ()
 jnz = jne
 
 -- Shorthands for registers
 
-rax :: Val addr
+rax :: Val label addr
 rax = R Rax
 
-rbx :: Val addr
+rbx :: Val label addr
 rbx = R Rbx
 
-rcx :: Val addr
+rcx :: Val label addr
 rcx = R Rcx
 
-rdx :: Val addr
+rdx :: Val label addr
 rdx = R Rdx
 
-rbp :: Val addr
+rbp :: Val label addr
 rbp = R Rbp
 
-rsi :: Val addr
+rsi :: Val label addr
 rsi = R Rsi
 
-rdi :: Val addr
+rdi :: Val label addr
 rdi = R Rdi
 
-rsp :: Val addr
+rsp :: Val label addr
 rsp = R Rsp
 
 -- Shorthands for indirect register addressing
 
-irax :: Val addr
+irax :: Val label addr
 irax = IR Rax
 
-irbx :: Val addr
+irbx :: Val label addr
 irbx = IR Rbx
 
-ircx :: Val addr
+ircx :: Val label addr
 ircx = IR Rcx
 
-irdx :: Val addr
+irdx :: Val label addr
 irdx = IR Rdx
 
-irbp :: Val addr
+irbp :: Val label addr
 irbp = IR Rbp
 
-irsp :: Val addr
+irsp :: Val label addr
 irsp = IR Rsp
 
-irsi :: Val addr
+irsi :: Val label addr
 irsi = IR Rsi
 
-irdi :: Val addr
+irdi :: Val label addr
 irdi = IR Rdi
 
 -- | Gets the index of a register.
@@ -192,7 +207,7 @@ index r = case r of
 
 -- | Wraps assembly code with the function intro and outro logic to deal with
 -- stack frames.
-asmFunction :: AsmF addr () -> AsmF addr ()
+asmFunction :: AsmF label addr () -> AsmF label addr ()
 asmFunction body = do
     push rbp
     mov rbp rsp

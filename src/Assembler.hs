@@ -6,199 +6,278 @@ module Assembler where
 import Asm
 import Free
 
-import Control.Monad.State
+import Control.Monad.Identity
 import Control.Monad.Except
+import Control.Monad.Reader
+import Control.Monad.State hiding ( put )
 import qualified Data.Binary.Put as P
 import Data.Bits
 import qualified Data.ByteString.Lazy as BS
+import qualified Data.IntMap as M
 import Data.Word
 
-type AsmMem = Asm Address
-type AsmMemF = Free AsmMem
+type LabelTable addr = M.IntMap addr
 
-data AssemblerError
-    = UnsupportedOpcode (AsmMem ())
+data LabelError = UndefinedLabel
+
+data AssemblerError label addr
+    = UnsupportedOpcode (Asm label addr ())
     | InvalidOpcode
+    | UnassignedLabel
+    | LabelError LabelError
 
-data AssemblerState
+data AssemblerState addr
     = AssemblerState
-        { _codeOffset :: Word64
+        { _codeOffset :: addr
+        , _labelMap :: LabelTable (Maybe addr)
         }
 
--- | An initial assembler state whose code offset is zero.
-initialState :: AssemblerState
-initialState = AssemblerState { _codeOffset = 0 }
+-- | Assembler labels in the code.
+newtype Label
+    = LabelVal
+        { unLabel :: Int
+        }
+    deriving (Eq, Show)
 
-newtype AssemblerT m a
+-- | An initial assembler state whose code offset is zero and whose label map
+-- contains one key assigned to the start address.
+initialState :: Num a => AssemblerState a
+initialState
+    = AssemblerState
+        { _codeOffset = 0
+        , _labelMap = M.singleton 0 (Just 0)
+        }
+
+newtype AssemblerT label addr m a
     = AssemblerT
-        { runAssemblerT :: StateT AssemblerState (ExceptT AssemblerError m) a
+        { runAssemblerT
+            :: StateT (AssemblerState addr)
+                      (ExceptT (AssemblerError label addr)
+                               m)
+               a
         }
     deriving
         ( Functor
         , Applicative
         , Monad
-        , MonadState AssemblerState
-        , MonadError AssemblerError
+        , MonadState (AssemblerState addr)
+        , MonadError (AssemblerError label addr)
         )
 
-instance MonadTrans AssemblerT where
-    lift = AssemblerT . lift . lift
+type R addr a = (ReaderT (LabelTable addr) (ExceptT LabelError P.PutM) a)
+type AssemblerM addr = AssemblerT Label addr Identity
+type Assembler addr a = AssemblerM addr (R addr a)
 
-type AssemblerM = AssemblerT P.PutM
-type Assembler = AssemblerM ()
+put :: P.Put -> R addr ()
+put = lift . lift
 
--- | Outputs arbitrary data with no concern for the assembler state.
-unsafePut :: P.Put -> Assembler
-unsafePut = lift
+offset :: Num addr => addr -> AssemblerM addr ()
+offset a = modify $ \s -> s { _codeOffset = _codeOffset s + a }
 
--- | Emits bytes to the output, adjusting the assembler state to track the
--- number of written bytes.
-emit :: P.Put -> Assembler
-emit p = do
-    let l = fromIntegral . BS.length . P.runPut $ p
-    modify $ \s -> s { _codeOffset = _codeOffset s + l }
-    unsafePut p
+-- | Assigns an arbitrary address to a label.
+unsafeSetLabel :: Label -> Maybe addr -> AssemblerM addr ()
+unsafeSetLabel (LabelVal l) addr
+    = modify $ \s -> s { _labelMap = M.insert l addr (_labelMap s) }
 
-codeOffset :: AssemblerM Word64
+-- | Gets the current offset in the assembled code.
+codeOffset :: AssemblerM addr addr
 codeOffset = gets _codeOffset
 
-assembleArg :: AsmMem Assembler -> Assembler
+-- | Gets the label map of the assembler.
+labelMap :: AssemblerM addr (LabelTable (Maybe addr))
+labelMap = gets _labelMap
+
+-- | Looks up the code offset of a label.
+lookupLabel :: Label -> R addr addr
+lookupLabel (LabelVal i) = do
+    addr <- asks (i `M.lookup`)
+    case addr of
+        Nothing -> do
+            throwError UndefinedLabel
+        Just a -> do
+            return a
+
+emit m a = do
+    r <- m
+    return $ do
+        a
+        r
+
+emitPut m a = emit m (put a)
+
+assembleArg :: Integral addr
+            => Asm Label addr (Assembler addr ())
+            -> Assembler addr ()
 assembleArg a = case a of
     Ret m -> do
-        emit $ do
+        offset 1
+        emitPut m $ do
             P.putWord8 0xc3
-        m
     Mov (R reg) (I i) m -> do
-        emit $ do
+        offset 10
+        emitPut m $ do
             binEncode $ rexW rexPrefix
             P.putWord8 (0xb8 + index reg)
             P.putWord64le (fromIntegral i)
-        m
     Mov (R r1) (R r2) m -> do
-        emit $ do
+        offset 3
+        emitPut m $ do
             binEncode $ rexW rexPrefix
             P.putWord8 0x8b
             binEncode $ registerDirect r1 r2
-        m
     Mov (R r1) (IR r2) m -> do
-        emit $ do
+        offset 3
+        emitPut m $ do
             binEncode $ rexW rexPrefix
             P.putWord8 0x8b
             binEncode $ zeroIndirect r1 r2
-        m
     Mov (IR r1) (R r2) m -> do
-        emit $ do
+        offset 3
+        emitPut m $ do
             binEncode $ rexW rexPrefix
             P.putWord8 0x89
             binEncode $ zeroIndirect r1 r2
-        m
     Inc (R reg) m -> do
-        emit $ do
+        offset 3
+        emitPut m $ do
             binEncode $ rexW rexPrefix
             P.putWord8 0xff
             binEncode $ opcodeExtension RegisterDirect 0 reg
-        m
     Inc (IR reg) m -> do
-        emit $ do
+        offset 3
+        emitPut m $ do
             binEncode $ rexW rexPrefix
             P.putWord8 0xff
             binEncode $ opcodeExtension ZeroIndirect 0 reg
-        m
     Dec (R reg) m -> do
-        emit $ do
+        offset 3
+        emitPut m $ do
             binEncode $ rexW rexPrefix
             P.putWord8 0xff
             binEncode $ opcodeExtension RegisterDirect 1 reg
-        m
     Dec (IR reg) m -> do
-        emit $ do
+        offset 3
+        emitPut m $ do
             binEncode $ rexW rexPrefix
             P.putWord8 0xff
             binEncode $ opcodeExtension ZeroIndirect 1 reg
-        m
-    Loop (A addr) m -> do
+    Loop (L l) m -> do
+        offset 2
         off <- codeOffset
-        emit $ do
-            P.putWord8 0xe2
-            P.putWord8 (fromIntegral $ addr - off - 2)
+        emit m $ do
+            addr <- lookupLabel l
+            put $ do
+                P.putWord8 0xe2
+                P.putWord8 (fromIntegral $ addr - off)
+    NewLabel k -> do
+        m <- labelMap
+        let (i, _) = M.findMax m
+        let l = LabelVal (i + 1)
+        unsafeSetLabel l Nothing
+        k l
+    SetLabel l m -> do
+        o <- codeOffset
+        unsafeSetLabel l (Just o)
         m
-    Label k -> do
-        off <- codeOffset
-        k off
+    Here k -> do
+        o <- codeOffset
+        k o
     Syscall m -> do
-        emit $ do
+        offset 2
+        emitPut m $ do
             P.putWord8 0x0f
             P.putWord8 0x05
-        m
     Push (R reg) m -> do
-        emit $ P.putWord8 (0x50 + index reg)
-        m
+        offset 1
+        emitPut m $ P.putWord8 (0x50 + index reg)
     Pop (R reg) m -> do
-        emit $ P.putWord8 (0x58 + index reg)
-        m
+        offset 1
+        emitPut m $ P.putWord8 (0x58 + index reg)
     Int (I 3) m -> do
-        emit $ do
-            P.putWord8 0xcc
-        m
+        offset 1
+        emitPut m $ P.putWord8 0xcc
     Int (I v) m -> do
-        emit $ do
+        offset 2
+        emitPut m $ do
             P.putWord8 0xcd
             P.putWord8 (fromIntegral v)
-        m
     Cmp (R Rax) (I i) m -> do
-        emit $ do
+        offset 10
+        emitPut m $ do
             binEncode $ rexW rexPrefix
             P.putWord8 0x3d
             P.putWord64le (fromIntegral i)
-        m
-    Cmp (IR r) (I i) m -> do
-        emit $ do
+    Cmp (IR reg) (I i) m -> do
+        offset 7
+        emitPut m $ do
             binEncode $ rexW rexPrefix
             P.putWord8 0x81
-            binEncode $ opcodeExtension ZeroIndirect 7 r
+            binEncode $ opcodeExtension ZeroIndirect 7 reg
             P.putWord32le (fromIntegral i)
-        m
     Cmp (R r1) (R r2) m -> do
-        emit $ do
+        offset 3
+        emitPut m $ do
             binEncode $ rexW rexPrefix
             P.putWord8 0x3b
             binEncode $ registerDirect r1 r2
-        m
     Cmp (R r1) (IR r2) m -> do
-        emit $ do
+        offset 3
+        emitPut m $ do
             binEncode $ rexW rexPrefix
             P.putWord8 0x3b
             binEncode $ zeroIndirect r1 r2
-        m
     Cmp (IR r1) (R r2) m -> do
-        emit $ do
+        offset 3
+        emitPut m $ do
             binEncode $ rexW rexPrefix
             P.putWord8 0x39
             binEncode $ zeroIndirect r2 r1
-        m
-    Je (A addr) m -> do
+    Je (L l) m -> do
+        offset 2
         off <- codeOffset
-        emit $ do
-            P.putWord8 0x74
-            P.putWord8 (fromIntegral $ addr - off - 2)
-        m
-    Jne (A addr) m -> do
+        emit m $ do
+            addr <- lookupLabel l
+            put $ do
+                P.putWord8 0x74
+                P.putWord8 (fromIntegral $ addr - off)
+    Jne (L l) m -> do
+        offset 2
         off <- codeOffset
-        emit $ do
-            P.putWord8 0x75
-            P.putWord8 (fromIntegral $ addr - off - 2)
-        m
+        emit m $ do
+            addr <- lookupLabel l
+            put $ do
+                P.putWord8 0x75
+                P.putWord8 (fromIntegral $ addr - off)
     _ -> do
         throwError $ UnsupportedOpcode (a $> ())
 
-assemble :: AsmMemF () -> Either AssemblerError BS.ByteString
-assemble
-    = uncurry ($>)
-    . P.runPutM
-    . runExceptT
-    . flip evalStateT initialState
-    . runAssemblerT
-    . foldFM assembleArg
+assemble :: AsmF Label Word64 ()
+         -> Either (AssemblerError Label Word64) BS.ByteString
+assemble asm = do
+    let e = runIdentity
+          . runExceptT
+          . flip runStateT initialState
+          . runAssemblerT
+          . foldFM assembleArg
+          $ (asm $> return ())
+
+    (r, s) <- e
+
+    let m = sequence (_labelMap s)
+
+    labels <- case m of
+        Nothing -> Left UnassignedLabel
+        Just ls -> return ls
+
+    let e' = uncurry ($>)
+           . P.runPutM
+           . runExceptT
+           . flip runReaderT labels
+           $ r
+
+    case e' of
+        Left l -> Left $ LabelError l
+        Right x -> return x
 
 class BinaryEncodable a where
     binEncode :: a -> P.Put

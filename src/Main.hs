@@ -39,10 +39,10 @@ example = do
         output
         right
 
-exampleAsm :: AsmF addr ()
+exampleAsm :: AsmF label addr ()
 exampleAsm = do
     l <- label
-    A.loop (A l)
+    A.loop (L l)
 
 main :: IO ()
 main = do
@@ -60,8 +60,9 @@ main = do
             putStr "Assembler error: "
             case e of
                 InvalidOpcode -> putStrLn "invalid opcode"
-                UnsupportedOpcode _ -> do
-                    putStrLn "unsupported opcode"
+                UnsupportedOpcode _ -> putStrLn "unsupported opcode"
+                UnassignedLabel -> putStrLn "unassigned label"
+                LabelError _ -> putStrLn "label lookup failed"
             exitFailure
         Right bs -> do
             putStrLn "Generated code: "

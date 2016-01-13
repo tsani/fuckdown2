@@ -1,13 +1,18 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Mprotect where
+module Mprotect
+( Protection(..)
+, protVal
+, storeProtection
+, mprotectSize
+, mprotect
+) where
 
 import Data.Bits
 import Data.Word
 import Foreign
 import Foreign.C.Error
-import Foreign.C.Types
 
 foreign import ccall unsafe "sys/mman.h mprotect"
     c_mprotect :: Ptr a -> Word64 -> Word32 -> IO Int
@@ -17,9 +22,20 @@ data Protection
     | ProtWrite
     | ProtExec
 
+-- | Read permissions.
+protRead :: Int
 protRead = 0x1
+
+-- | Write permissions.
+protWrite :: Int
 protWrite = 0x2
+
+-- | Executable permissions.
+protExec :: Int
 protExec = 0x4
+
+-- | No protection.
+protNone :: Int
 protNone = 0x0
 
 protVal :: Protection -> Int

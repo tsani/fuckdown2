@@ -6,7 +6,6 @@ module Assembler where
 import Asm
 import Free
 
-import Control.Arrow ( (>>>) )
 import Control.Monad.State
 import Control.Monad.Except
 import qualified Data.Binary.Put as P
@@ -26,6 +25,8 @@ data AssemblerState
         { _codeOffset :: Word64
         }
 
+-- | An initial assembler state whose code offset is zero.
+initialState :: AssemblerState
 initialState = AssemblerState { _codeOffset = 0 }
 
 newtype AssemblerT m a
@@ -134,6 +135,58 @@ assembleArg a = case a of
         m
     Pop (R reg) m -> do
         emit $ P.putWord8 (0x58 + index reg)
+        m
+    Int (I 3) m -> do
+        emit $ do
+            P.putWord8 0xcc
+        m
+    Int (I v) m -> do
+        emit $ do
+            P.putWord8 0xcd
+            P.putWord8 (fromIntegral v)
+        m
+    Cmp (R Rax) (I i) m -> do
+        emit $ do
+            binEncode $ rexW rexPrefix
+            P.putWord8 0x3d
+            P.putWord64le (fromIntegral i)
+        m
+    Cmp (IR r) (I i) m -> do
+        emit $ do
+            binEncode $ rexW rexPrefix
+            P.putWord8 0x81
+            binEncode $ opcodeExtension ZeroIndirect 7 r
+            P.putWord32le (fromIntegral i)
+        m
+    Cmp (R r1) (R r2) m -> do
+        emit $ do
+            binEncode $ rexW rexPrefix
+            P.putWord8 0x3b
+            binEncode $ registerDirect r1 r2
+        m
+    Cmp (R r1) (IR r2) m -> do
+        emit $ do
+            binEncode $ rexW rexPrefix
+            P.putWord8 0x3b
+            binEncode $ zeroIndirect r1 r2
+        m
+    Cmp (IR r1) (R r2) m -> do
+        emit $ do
+            binEncode $ rexW rexPrefix
+            P.putWord8 0x39
+            binEncode $ zeroIndirect r2 r1
+        m
+    Je (A addr) m -> do
+        off <- codeOffset
+        emit $ do
+            P.putWord8 0x74
+            P.putWord8 (fromIntegral $ addr - off - 2)
+        m
+    Jne (A addr) m -> do
+        off <- codeOffset
+        emit $ do
+            P.putWord8 0x75
+            P.putWord8 (fromIntegral $ addr - off - 2)
         m
     _ -> do
         throwError $ UnsupportedOpcode (a $> ())

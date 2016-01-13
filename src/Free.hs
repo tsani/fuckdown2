@@ -7,6 +7,7 @@
 module Free where
 
 import Control.Monad ( ap )
+import Control.Monad.Fix
 
 import Subtype
 
@@ -29,6 +30,13 @@ instance Functor f => Monad (Free f) where
     return = Pure
     (Pure x) >>= k = k x
     (Free f) >>= k = Free (fmap (>>= k) f)
+
+instance Functor f => MonadFix (Free f) where
+    -- mfix :: (a -> Free f a) -> Free f a
+    mfix f = a where
+        a = f (impure a)
+        impure (Pure x) = x
+        impure (Free _) = error "mfix: Free"
 
 -- | Promotes a functor into its associated free monad.
 liftF :: Functor f => f r -> Free f r

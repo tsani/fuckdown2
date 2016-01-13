@@ -4,42 +4,55 @@
 
 module Main where
 
-import Asm hiding (loop)
+import Asm as A
 import Assembler
 import Compiler
 import DSL
 import Free
-import Fuckdown
+import Fuckdown as F
 import qualified Interpreter as I
 import Memory
-import qualified Pretty as PF
 import qualified PrettyAsm as PA
 import Subtype
 
-import Control.Monad.State
 import qualified Data.ByteString.Lazy as BS
-import Data.ByteString.Unsafe ( unsafeUseAsCString )
-import qualified Data.Text.Lazy.Builder as TextB
-import Data.Text.Lazy.Builder.Int ( hexadecimal )
+import qualified Data.ByteString as BSS
 import qualified Data.Text.Lazy.IO as TextIO
 import Foreign
-import System.Exit ( exitFailure )
+import System.Exit ( exitSuccess, exitFailure )
 
 exec :: Free FuckDSL r -> I.Interpreter r
 exec = foldFM I.interpret
 
-example :: (Functor f, Inc :<: f, GoLeft :<: f, GoRight :<: f, Output :<: f, Loop f :<: f) => Free f ()
+example :: ( Functor f
+           , Inc :<: f
+           , Dec :<: f
+           , GoLeft :<: f
+           , GoRight :<: f
+           , Output :<: f
+           , Loop f :<: f
+           )
+        => Free f ()
 example = do
-    mkString "Hello, world!\n"
-    loop $ do
+    mkString "hi!\n"
+    F.loop $ do
         output
         right
 
+exampleAsm :: AsmF addr ()
+exampleAsm = do
+    l <- label
+    A.loop (A l)
+
+main :: IO ()
 main = do
-    -- putStrLn (PF.pretty_ example)
-    -- runStateT (I.runInterpreter (exec example)) I.initialState
+    -- let (Right bs) = assemble exampleAsm
+    -- print (BS.unpack bs)
+    -- _ <- exitSuccess
+
     let asm = asmFunction $ do
-            mov rcx rdi
+            -- int (I 3)
+            mov rax rdi
             compileFuck example
     TextIO.putStr (PA.pretty asm)
     code <- case assemble asm of
@@ -47,13 +60,17 @@ main = do
             putStr "Assembler error: "
             case e of
                 InvalidOpcode -> putStrLn "invalid opcode"
-                UnsupportedOpcode asm -> do
+                UnsupportedOpcode _ -> do
                     putStrLn "unsupported opcode"
             exitFailure
         Right bs -> do
             putStrLn "Generated code: "
             putStr (show (BS.unpack bs))
             return bs
-    f <- byteStringFunction (BS.toStrict code)
+    let b = BS.toStrict code
+    print $ BSS.length b
+    -- Convert the bytestring to a function
+    f <- byteStringFunction b
+    -- Allocate a chunk of memory to use, pass it to the function, and run it
     () <- allocaBytes 4096 f
     putStr "Done."

@@ -27,7 +27,7 @@ type Memory = Z.Zipper Word8
 
 between :: Monad m => m a -> m b -> m a
 between m a = do
-    a
+    _ <- a
     m
 
 instance MonadState Memory m => Interpret GoLeft m where
@@ -54,12 +54,12 @@ instance (MonadIO m, MonadState Memory m) => Interpret Output m where
         liftIO $ putChar c
 
 instance (MonadState Memory m, Interpret f m) => Interpret (Loop f) m where
-    interpret (Loop body m) = between m loop where
-        loop = do
+    interpret (Loop body m) = between m l where
+        l = do
             x <- gets Z.focus
             when (x > 0) $ do
                 _ <- foldFM interpret body
-                loop
+                l
 
 newtype Interpreter a
     = Interpreter

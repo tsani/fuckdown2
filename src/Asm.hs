@@ -3,7 +3,6 @@
 module Asm where
 
 import Data.Int
-import Data.Binary.Put
 import Data.Word
 
 import Free
@@ -51,28 +50,81 @@ data Asm addr f
     | Nop f
     | Syscall f
     | Label (addr -> f)
+    | Int (Val addr) f
+    | Cmp (Val addr) (Val addr) f
+    | Je (Val addr) f
+    | Jne (Val addr) f
     deriving (Functor)
 
 type AsmF addr = Free (Asm addr)
 
 -- Shorthands for Free-wrapped assembly commands.
 
+ret :: AsmF addr ()
 ret = liftF . Ret $ ()
+
+mov :: Val addr -> Val addr -> AsmF addr ()
 mov v1 v2 = liftF . Mov v1 v2 $ ()
+
+add :: Val addr -> Val addr -> AsmF addr ()
 add v1 v2 = liftF . Add v1 v2 $ ()
+
+sub :: Val addr -> Val addr -> AsmF addr ()
 sub v1 v2 = liftF . Sub v1 v2 $ ()
+
+mul :: Val addr -> AsmF addr ()
 mul v1 = liftF . Mul v1 $ ()
+
+imul :: Val addr -> AsmF addr ()
 imul v1 = liftF . IMul v1 $ ()
+
+xor :: Val addr -> Val addr -> AsmF addr ()
 xor v1 v2 = liftF . Xor v1 v2 $ ()
+
+inc :: Val addr -> AsmF addr ()
 inc v1 = liftF . Inc v1 $ ()
+
+dec :: Val addr -> AsmF addr ()
 dec v1 = liftF . Dec v1 $ ()
+
+push :: Val addr -> AsmF addr ()
 push v1 = liftF . Push v1 $ ()
+
+pop :: Val addr -> AsmF addr ()
 pop v1 = liftF . Pop v1 $ ()
+
+jmp :: Val addr -> AsmF addr ()
 jmp v1 = liftF . Jmp v1 $ ()
+
+loop :: Val addr -> AsmF addr ()
 loop v1 = liftF . Loop v1 $ ()
+
+nop :: AsmF addr ()
 nop = liftF . Nop $ ()
+
+syscall :: AsmF addr ()
 syscall = liftF . Syscall $ ()
+
+label :: AsmF addr addr
 label = liftF . Label $ id
+
+int :: Val addr -> AsmF addr ()
+int v1 = liftF . Int v1 $ ()
+
+cmp :: Val addr -> Val addr -> AsmF addr ()
+cmp v1 v2 = liftF . Cmp v1 v2 $ ()
+
+je :: Val addr -> AsmF addr ()
+je v1 = liftF . Je v1 $ ()
+
+jne :: Val addr -> AsmF addr ()
+jne v1 = liftF . Jne v1 $ ()
+
+jz :: Val addr -> AsmF addr ()
+jz = je
+
+jnz :: Val addr -> AsmF addr ()
+jnz = jne
 
 -- Shorthands for registers
 

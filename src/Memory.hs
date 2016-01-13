@@ -1,13 +1,17 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Memory where
+module Memory
+( mmapAnonymousSize
+, byteStringFunction
+, c_mmap
+, c_munmap
+) where
 
 import Foreign
 import Foreign.C
 import qualified Data.ByteString as BS
 import Data.ByteString.Unsafe ( unsafeUseAsCString )
-import Data.Word
 
 import Mprotect
 import Invoke
@@ -18,6 +22,8 @@ foreign import ccall unsafe "sys/mman.h mmap"
 foreign import ccall unsafe "sys/mman.h munmap"
     c_munmap :: Ptr a -> Int -> IO Int
 
+-- | Create an anonymous mapping of bytes of a given size with given memory
+-- protection constraints.
 mmapAnonymousSize :: Int -> Maybe [Protection] -> IO (Ptr a)
 mmapAnonymousSize sz (storeProtection -> prot) = do
     let flagMapAnonymous = 0x20
@@ -35,4 +41,5 @@ byteStringFunction bs = do
         m <- mmapAnonymousSize l (Just [ProtRead, ProtWrite, ProtExec])
         copyBytes m p l
         return m
+    putStrLn "function casted"
     mkInvoke p

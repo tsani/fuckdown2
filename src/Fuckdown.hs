@@ -7,7 +7,6 @@
 
 module Fuckdown where
 
-import Control.Monad ( ap, when, replicateM_ )
 import Control.Monad.State
 import Data.Word
 
@@ -52,22 +51,40 @@ output = liftF . inject . Output $ ()
 loop :: (Functor f, Loop f :<: f) => Free f () -> Free f ()
 loop p = liftF . inject . Loop p $ ()
 
+-- | Just a flipped version of "replicateM_".
+basicMany :: Monad m => m a -> Int -> m ()
 basicMany a = flip replicateM_ a
 
+-- | Increment the cell under the cursor a given number of times, effectively
+-- increasing its value by the given "Word8".
 incMany :: (Functor f, Inc :<: f) => Word8 -> Free f ()
 incMany = basicMany inc . fromIntegral
 
+-- | Shift the cursor to the left a given number of times.
 leftMany :: (Functor f, GoLeft :<: f) => Int -> Free f ()
 leftMany = basicMany left
 
+-- | Shift the cursor to the right a given number of times.
 rightMany :: (Functor f, GoRight :<: f) => Int -> Free f ()
 rightMany = basicMany right
 
+-- | Zeroes out the cell under the cursor.
+zeroCell :: (Functor f, Dec :<: f, Loop f :<: f) => Free f ()
+zeroCell = loop dec
+
+-- | Write a given character to the cell under the cursor.
+--
+-- /Warning/: this function assumes that the value under the cursor is zero.
 mkChar :: (Functor f, Inc :<: f) => Char -> Free f ()
 mkChar = incMany . fromIntegral . fromEnum
 
-mkString :: (Functor f, Inc :<: f, GoLeft :<: f, GoRight :<: f) => String -> Free f ()
-mkString [] = return ()
+-- | Write a string to sequential rightward cells under the cursor.
+--
+-- /Warning/: this function assumes that the value of each cell that would be
+-- occupied by the string is zero.
+mkString :: (Functor f, Inc :<: f, GoLeft :<: f, GoRight :<: f, Loop f :<: f, Dec :<: f)
+         => String -> Free f ()
+mkString [] = zeroCell
 mkString (c:cs) = do
     mkChar c
     right

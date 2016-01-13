@@ -75,13 +75,15 @@ zeroCell = loop dec
 -- | Write a given character to the cell under the cursor.
 --
 -- /Warning/: this function assumes that the value under the cursor is zero.
-mkChar :: (Functor f, Inc :<: f) => Char -> Free f ()
-mkChar = incMany . fromIntegral . fromEnum
+mkChar :: (Functor f, Inc :<: f, Loop f :<: f, Dec :<: f) => Char -> Free f ()
+mkChar c = do
+    zeroCell
+    incMany . fromIntegral . fromEnum $ c
 
 -- | Write a string to sequential rightward cells under the cursor.
 --
--- /Warning/: this function assumes that the value of each cell that would be
--- occupied by the string is zero.
+-- /Warning/: This function will zero out the cell prior to writing the
+-- character.
 mkString :: (Functor f, Inc :<: f, GoLeft :<: f, GoRight :<: f, Loop f :<: f, Dec :<: f)
          => String -> Free f ()
 mkString [] = zeroCell

@@ -250,5 +250,5 @@ instance BinaryEncodable ModRm where
     binEncode (ModRmOpEx (dispVal -> d) ex (index -> rm))
         = P.putWord8
         $   (d `shift` 6)
-        .|. (7 .&. ex `shift` 3)
+        .|. ((7 .&. ex) `shift` 3)
         .|. rm

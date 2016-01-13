@@ -41,5 +41,4 @@ byteStringFunction bs = do
         m <- mmapAnonymousSize l (Just [ProtRead, ProtWrite, ProtExec])
         copyBytes m p l
         return m
-    putStrLn "function casted"
     mkInvoke p

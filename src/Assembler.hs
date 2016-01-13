@@ -119,7 +119,7 @@ assembleArg a = case a of
         off <- codeOffset
         emit $ do
             P.putWord8 0xe2
-            P.putWord8 (fromIntegral $ addr - off + 2)
+            P.putWord8 (fromIntegral $ addr - off - 2)
         m
     Label k -> do
         off <- codeOffset

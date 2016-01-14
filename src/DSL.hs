@@ -3,7 +3,10 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeOperators #-}
 
-module DSL where
+module DSL 
+( FuckDSL(..)
+, module Fuckdown
+) where
 
 import Coproduct
 import Fuckdown

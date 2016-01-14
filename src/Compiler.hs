@@ -10,7 +10,7 @@ module Compiler
 , Compile(..)
 ) where
 
-import Asm
+import Asm as A
 import Coproduct
 import DSL
 import Free
@@ -50,22 +50,22 @@ instance (Compile m f, Compile m g) => Compile m (f :+: g) where
 
 instance Compile (AsmF label addr) Fuck.GoLeft where
     compileArg (Fuck.GoLeft m) = do
-        dec rax
+        A.dec rax
         m
 
 instance Compile (AsmF label addr) Fuck.GoRight where
     compileArg (Fuck.GoRight m) = do
-        inc rax
+        A.inc rax
         m
 
 instance Compile (AsmF label addr) Fuck.Inc where
     compileArg (Fuck.Inc m) = do
-        inc irax
+        A.inc irax
         m
 
 instance Compile (AsmF label addr) Fuck.Dec where
     compileArg (Fuck.Dec m) = do
-        dec irax
+        A.dec irax
         m
 
 instance Compile (AsmF label addr) f => Compile (AsmF label addr) (Fuck.Loop f) where

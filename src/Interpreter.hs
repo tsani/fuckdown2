@@ -13,7 +13,6 @@ import Data.Word
 import Coproduct
 import DSL
 import Free
-import Fuckdown
 import qualified Zipper as Z
 
 class (Functor f, Monad m) => Interpret f m where

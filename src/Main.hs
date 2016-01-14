@@ -12,6 +12,7 @@ import Free
 import Fuckdown as F
 import qualified Interpreter as I
 import Memory
+import Parser
 import qualified PrettyAsm as PA
 import Subtype
 

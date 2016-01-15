@@ -70,3 +70,6 @@ initialState = Z.Zipper (repeat 0) 0 (repeat 0)
 
 instance Interpret FuckDSL Interpreter where
     interpret (FuckDSL f) = interpret f
+
+exec :: Free FuckDSL r -> Interpreter r
+exec = foldFM interpret

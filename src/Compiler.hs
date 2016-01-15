@@ -8,6 +8,9 @@ module Compiler
 ( asmFunction
 , compileFuck
 , Compile(..)
+, stdinFd
+, stdoutFd
+, stderrFd
 ) where
 
 import Asm as A

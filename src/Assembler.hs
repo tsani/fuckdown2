@@ -97,12 +97,17 @@ lookupLabel (LabelVal i) = do
         Just a -> do
             return a
 
+emit :: (Monad m, Monad n) => m (n b) -> n a -> m (n b)
 emit m a = do
     r <- m
     return $ do
-        a
+        _ <- a
         r
 
+emitPut :: Monad m
+        => m (ReaderT (LabelTable addr) (ExceptT LabelError P.PutM) b)
+        -> P.Put
+        -> m (ReaderT (LabelTable addr) (ExceptT LabelError P.PutM) b)
 emitPut m a = emit m (put a)
 
 assembleArg :: Integral addr

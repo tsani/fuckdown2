@@ -7,49 +7,28 @@ module Main where
 import Asm as A
 import Assembler
 import Compiler
-import DSL
-import Free
-import Fuckdown as F
-import qualified Interpreter as I
 import Memory
 import Parser
-import qualified PrettyAsm as PA
-import Subtype
 
+import Data.Attoparsec.ByteString ( parseOnly )
 import qualified Data.ByteString.Lazy as BS
-import qualified Data.ByteString as BSS
-import qualified Data.Text.Lazy.IO as TextIO
+import qualified Data.ByteString.Char8 as C8
 import Foreign
 import System.Exit ( exitFailure )
 
-exec :: Free FuckDSL r -> I.Interpreter r
-exec = foldFM I.interpret
-
-example :: ( Functor f
-           , Inc :<: f
-           , Dec :<: f
-           , GoLeft :<: f
-           , GoRight :<: f
-           , Output :<: f
-           , Loop f :<: f
-           )
-        => Free f ()
-example = do
-    mkString "hi!\n"
-    F.loop $ do
-        output
-        right
-
-exampleAsm :: AsmF label addr ()
-exampleAsm = do
-    l <- label
-    A.loop (L l)
-
 main :: IO ()
 main = do
+    stdin <- C8.getContents
+    bf <- case parseOnly brainfuck stdin of
+        Left e -> do
+            putStrLn "Parse error: "
+            putStrLn e
+            exitFailure
+        Right x -> return x
+
     let asm = asmFunction $ do
             mov rax rdi
-            compileFuck example
+            compileFuck bf
 
     code <- case assemble asm of
         Left e -> do

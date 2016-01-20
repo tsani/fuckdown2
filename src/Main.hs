@@ -6,6 +6,7 @@
 module Main where
 
 import Asm as A
+import AsmOptimize
 import Assembler
 import Compiler
 import Memory
@@ -20,6 +21,19 @@ import qualified Data.Text.Lazy.IO as TIO
 import Foreign
 import System.Environment ( getArgs )
 import System.Exit ( exitFailure )
+
+
+assembleIO asm = case assemble asm of
+    Left e -> do
+        putStr "Assembler error: "
+        case e of
+            InvalidOpcode -> putStrLn "invalid opcode"
+            UnsupportedOpcode _ -> putStrLn "unsupported opcode"
+            UnassignedLabel -> putStrLn "unassigned label"
+            LabelError _ -> putStrLn "label lookup failed"
+        exitFailure
+    Right bs -> do
+        return bs
 
 main :: IO ()
 main = do
@@ -41,23 +55,24 @@ main = do
             mov rax rdi
             compileFuck bf
 
+    let optimizedAsm = optimizeAsm asm
+
+    TIO.writeFile "opt.asm" (pretty optimizedAsm)
     TIO.writeFile "out.asm" (pretty asm)
 
-    code <- case assemble asm of
-        Left e -> do
-            putStr "Assembler error: "
-            case e of
-                InvalidOpcode -> putStrLn "invalid opcode"
-                UnsupportedOpcode _ -> putStrLn "unsupported opcode"
-                UnassignedLabel -> putStrLn "unassigned label"
-                LabelError _ -> putStrLn "label lookup failed"
-            exitFailure
-        Right bs -> do
-            return bs
+    code <- assembleIO asm
+    optimizedCode <- assembleIO optimizedAsm
 
     let b = BS.toStrict code
-    putStrLn $ "Assembled " ++ show (C8.length b) ++ " bytes."
-    f <- byteStringFunction b
+    let bOpt = BS.toStrict optimizedCode
+    let nb = C8.length b
+    let nbOpt = C8.length bOpt
+    putStrLn $ "Assembled " ++ show nb ++ " bytes (unoptimized)."
+    putStrLn $ "Assembled " ++ show nbOpt ++ " bytes (optimized)."
+    putStrLn $ show (fromIntegral (nb - nbOpt) / fromIntegral nb * 100)
+        ++ "% improvement"
+
+    f <- byteStringFunction bOpt
     mem <- callocBytes 4096
     () <- f mem
     free mem

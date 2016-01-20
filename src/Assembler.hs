@@ -118,6 +118,40 @@ assembleArg a = case a of
         offset 1
         emitPut m $ do
             P.putWord8 0xc3
+    Add (R Rax) (I i) m -> do
+        offset 2
+        emitPut m $ do
+            P.putWord8 0x04
+            P.putWord8 (fromIntegral i)
+    Add (R reg) (I i) m -> do
+        offset 3
+        emitPut m $ do
+            P.putWord8 0x80
+            binEncode $ opcodeExtension RegisterDirect 0 reg
+            P.putWord8 (fromIntegral i)
+    Add (IR reg) (I i) m -> do
+        offset 3
+        emitPut m $ do
+            P.putWord8 0x80
+            binEncode $ opcodeExtension ZeroIndirect 0 reg
+            P.putWord8 (fromIntegral i)
+    Sub (R Rax) (I i) m -> do
+        offset 2
+        emitPut m $ do
+            P.putWord8 0x2c
+            P.putWord8 (fromIntegral i)
+    Sub (R reg) (I i) m -> do
+        offset 3
+        emitPut m $ do
+            P.putWord8 0x80
+            binEncode $ opcodeExtension RegisterDirect 5 reg
+            P.putWord8 (fromIntegral i)
+    Sub (IR reg) (I i) m -> do
+        offset 3
+        emitPut m $ do
+            P.putWord8 0x80
+            binEncode $ opcodeExtension ZeroIndirect 5 reg
+            P.putWord8 (fromIntegral i)
     Mov (R reg) (I i) m -> do
         offset 10
         emitPut m $ do

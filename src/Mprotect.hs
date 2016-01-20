@@ -5,17 +5,10 @@ module Mprotect
 ( Protection(..)
 , protVal
 , storeProtection
-, mprotectSize
-, mprotect
 ) where
 
 import Data.Bits
 import Data.Word
-import Foreign
-import Foreign.C.Error
-
-foreign import ccall unsafe "sys/mman.h mprotect"
-    c_mprotect :: Ptr a -> Word64 -> Word32 -> IO Int
 
 data Protection
     = ProtRead
@@ -23,36 +16,26 @@ data Protection
     | ProtExec
 
 -- | Read permissions.
-protRead :: Int
+protRead :: Word32
 protRead = 0x1
 
 -- | Write permissions.
-protWrite :: Int
+protWrite :: Word32
 protWrite = 0x2
 
 -- | Executable permissions.
-protExec :: Int
+protExec :: Word32
 protExec = 0x4
 
 -- | No protection.
-protNone :: Int
+protNone :: Word32
 protNone = 0x0
 
-protVal :: Protection -> Int
+protVal :: Protection -> Word32
 protVal ProtRead = protRead
 protVal ProtWrite = protWrite
 protVal ProtExec = protExec
 
-storeProtection :: Maybe [Protection] -> Int
+storeProtection :: Maybe [Protection] -> Word32
 storeProtection Nothing = protNone
 storeProtection (Just ps) = foldr (.|.) protNone (map protVal ps)
-
-mprotectSize :: Ptr a -> Int -> Maybe [Protection] -> IO ()
-mprotectSize p sz (storeProtection -> ps)
-    = throwErrnoIf_ (/= 0) "mprotect"
-    $ c_mprotect p (fromIntegral sz) (fromIntegral ps)
-
-mprotect :: Storable a => Ptr a -> Maybe [Protection] -> IO ()
-mprotect p mps = do
-    x <- peek p
-    mprotectSize p (sizeOf x) mps

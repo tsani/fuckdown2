@@ -143,28 +143,24 @@ assembleArg a = case a of
             P.putWord8 0x89
             binEncode $ zeroIndirect r1 r2
     Inc (R reg) m -> do
-        offset 3
+        offset 2
         emitPut m $ do
-            binEncode $ rexW rexPrefix
-            P.putWord8 0xff
+            P.putWord8 0xfe
             binEncode $ opcodeExtension RegisterDirect 0 reg
     Inc (IR reg) m -> do
-        offset 3
+        offset 2
         emitPut m $ do
-            binEncode $ rexW rexPrefix
-            P.putWord8 0xff
+            P.putWord8 0xfe
             binEncode $ opcodeExtension ZeroIndirect 0 reg
     Dec (R reg) m -> do
-        offset 3
+        offset 2
         emitPut m $ do
-            binEncode $ rexW rexPrefix
-            P.putWord8 0xff
+            P.putWord8 0xfe
             binEncode $ opcodeExtension RegisterDirect 1 reg
     Dec (IR reg) m -> do
-        offset 3
+        offset 2
         emitPut m $ do
-            binEncode $ rexW rexPrefix
-            P.putWord8 0xff
+            P.putWord8 0xfe
             binEncode $ opcodeExtension ZeroIndirect 1 reg
     Loop (L l) m -> do
         offset 2
@@ -207,52 +203,49 @@ assembleArg a = case a of
             P.putWord8 0xcd
             P.putWord8 (fromIntegral v)
     Cmp (R Rax) (I i) m -> do
-        offset 10
+        offset 2
         emitPut m $ do
-            binEncode $ rexW rexPrefix
-            P.putWord8 0x3d
-            P.putWord64le (fromIntegral i)
+            P.putWord8 0x3c
+            P.putWord8 (fromIntegral i)
     Cmp (IR reg) (I i) m -> do
-        offset 7
-        emitPut m $ do
-            binEncode $ rexW rexPrefix
-            P.putWord8 0x81
-            binEncode $ opcodeExtension ZeroIndirect 7 reg
-            P.putWord32le (fromIntegral i)
-    Cmp (R r1) (R r2) m -> do
         offset 3
         emitPut m $ do
-            binEncode $ rexW rexPrefix
-            P.putWord8 0x3b
+            P.putWord8 0x80
+            binEncode $ opcodeExtension ZeroIndirect 7 reg
+            P.putWord8 (fromIntegral i)
+    Cmp (R r1) (R r2) m -> do
+        offset 2
+        emitPut m $ do
+            P.putWord8 0x3a
             binEncode $ registerDirect r1 r2
     Cmp (R r1) (IR r2) m -> do
-        offset 3
+        offset 2
         emitPut m $ do
-            binEncode $ rexW rexPrefix
-            P.putWord8 0x3b
+            P.putWord8 0x3a
             binEncode $ zeroIndirect r1 r2
     Cmp (IR r1) (R r2) m -> do
-        offset 3
+        offset 2
         emitPut m $ do
-            binEncode $ rexW rexPrefix
-            P.putWord8 0x39
+            P.putWord8 0x38
             binEncode $ zeroIndirect r2 r1
     Je (L l) m -> do
-        offset 2
+        offset 6
         off <- codeOffset
         emit m $ do
             addr <- lookupLabel l
             put $ do
-                P.putWord8 0x74
-                P.putWord8 (fromIntegral $ addr - off)
+                P.putWord8 0x0f
+                P.putWord8 0x84
+                P.putWord32le (fromIntegral $ addr - off)
     Jne (L l) m -> do
-        offset 2
+        offset 6
         off <- codeOffset
         emit m $ do
             addr <- lookupLabel l
             put $ do
-                P.putWord8 0x75
-                P.putWord8 (fromIntegral $ addr - off)
+                P.putWord8 0x0f
+                P.putWord8 0x85
+                P.putWord32le (fromIntegral $ addr - off)
     _ -> do
         throwError $ UnsupportedOpcode (a $> ())
 

@@ -97,9 +97,9 @@ prettyArg a = case a of
     Nop m        -> line m $ "nop"
     Syscall m    -> line m $ "syscall"
     NewLabel k -> do
-        l <- (<> ":") <$> nextLabel
+        l <- nextLabel
         k l
-    SetLabel l m -> line m l
+    SetLabel l m -> line m (l <> ":")
     Here k -> k "$"
 
 pretty :: AsmPrettyF a -> T.Text
